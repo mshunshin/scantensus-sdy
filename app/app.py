@@ -9,6 +9,7 @@ from tempfile import _TemporaryFileWrapper
 import matplotlib.pyplot as plt
 
 import numpy as np
+import pandas as pd
 from scipy.signal import resample_poly
 
 EXAMPLE_FILE = "sample_data/sample.sdy"
@@ -69,12 +70,24 @@ def export_curves(sdy: SDYFile) -> list[str]:
     Exports the curves to CSV files.
 
     :param sdy: SDY file
-    """    
-    curve_to_csv(sdy.flow, generate_time_axis(sdy.flow, frequency=200), 'out/flow.csv')
-    curve_to_csv(sdy.pa, generate_time_axis(sdy.pa, frequency=200), 'out/pa.csv')
-    curve_to_csv(sdy.pd, generate_time_axis(sdy.pd, frequency=200), 'out/pd.csv')
+    """
 
-    return ['out/flow.csv', 'out/pa.csv', 'out/pd.csv']
+    flow = resample(sdy.flow, original_frequency=200, target_frequency=200)[0]
+    pressure_anterior = resample(sdy.pa, original_frequency=400, target_frequency=200)[0]
+    pressure_distal = resample(sdy.pd, original_frequency=400, target_frequency=200)[0]
+
+    df = pd.DataFrame(
+        {
+            'time': generate_time_axis(flow, frequency=200),
+            'flow': flow,
+            'pa': pressure_anterior,
+            'pd': pressure_distal
+        }
+    )
+
+    df.to_csv('out/curves.csv', index=False)
+
+    return ['out/curves.csv']
 
 
 def generate_time_axis(data: np.ndarray, frequency: float) -> np.ndarray:
@@ -89,32 +102,29 @@ def generate_time_axis(data: np.ndarray, frequency: float) -> np.ndarray:
     return np.arange(data.shape[0]) / frequency
 
 
-def resample(data: np.ndarray, original_frequency: float, target_frequency: float = 50) -> np.ndarray:
+def resample(signal: np.ndarray, original_frequency: int, target_frequency: int) -> tuple[np.ndarray, np.ndarray]:
     """
-    Resamples the data to the target frequency.
+    Resamples the signal to the target frequency.
 
-    :param data: data to resample
-    :param original_frequency: original frequency of the data
-    :param target_frequency: target frequency of the data
-    :return: resampled data
+    :param signal: signal to resample
+    :param original_frequency: original frequency of the signal
+    :param target_frequency: target frequency of the signal
+    :return: tuple of resampled signal and time
     """
-    # Calculate resampling ratio
-    if original_frequency < target_frequency:
-        # Upsampling
-        up = target_frequency
-        down = original_frequency
-    else:
-        # Downsampling
-        up = original_frequency
-        down = target_frequency
 
-    # Resample data
-    resampled_data = resample_poly(data, up, down)
+    if original_frequency == target_frequency:
+        return signal, np.arange(signal.shape[0]) / original_frequency
 
-    # Create time array
-    time = np.arange(resampled_data.shape[0]) / target_frequency
+    # Calculate the time array for the original signal
+    original_time = np.arange(signal.shape[0]) / original_frequency
 
-    return resampled_data, time
+    # Calculate the time array for the resampled signal
+    resampled_time = np.arange(0, original_time[-1], 1/target_frequency)
+
+    # Use np.interp to resample the signal
+    resampled_signal = np.interp(resampled_time, original_time, signal)
+
+    return resampled_signal, resampled_time
 
 
 def _load_model():
@@ -129,6 +139,7 @@ def update_interval_plot(state: AppState, x_axis_index: int) -> tuple[AppState, 
     render_spectrum_with_flow_tracing(state.sdy_file, x_axis_index)
 
     return state, interval_plot
+
 
 def parse_sdy(state: AppState, file: _TemporaryFileWrapper) -> tuple[AppState, plt.figure, plt.figure, list[str]]:
     logger.info(f'Parsing SDY file: {file.name}')
