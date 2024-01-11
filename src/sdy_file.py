@@ -45,6 +45,9 @@ class SDYFile:
     chan_calc5 = np.array([42])  # Calc
     chan_flow_scale = np.array([43])  # flow scale for spectrum
 
+    # NOTE(guilherme): the number of channels in the arrays above correlate to the
+    # frequency, 50hz = 1 channel, 100hz = 2 channels, 150hz = 3 channels, 200hz = 4 channels. 
+
     # 43 to 87 inclusive - UNUSED - 0
 
     # 88:344 - Spectrum A
