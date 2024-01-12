@@ -41,10 +41,6 @@ class PretransformationsModule(nn.Module):
             transform_matrix=dataset_transform_matrix
         )
 
-        # Transform the images.
-        images = images.to(dtype=torch.float32)
-        images = transform_image(images, dataset_transform_matrix, out_image_size=self.make_heatmaps.image_out_size)
-
         return images, heatmaps, weights
 
 

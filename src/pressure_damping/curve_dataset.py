@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetcher, Curve
 
 from loguru import logger
+from src.pressure_damping.unity_dataset import center_crop_or_pad_t
 from src.utils.cluster_source import ClusterSource
 
 import torchvision
@@ -201,7 +202,7 @@ class CurveDataset(Dataset):
         return image
 
 
-    def apply_matrix_to_coords(transform_matrix: torch.Tensor, coord: torch.Tensor):
+    def apply_matrix_to_coords(self, transform_matrix: torch.Tensor, coord: torch.Tensor):
         if coord.dim() == 2:
             coord = coord.unsqueeze(0)
 
