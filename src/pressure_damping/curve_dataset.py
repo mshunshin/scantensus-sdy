@@ -44,6 +44,11 @@ class CurveDataset(Dataset):
     The unrolled Matt-formated data.
     """
 
+    raw_labels: dict[str, dict[str, any]] = {}
+    """
+    The raw `labels/` database for each of the projects.
+    """
+
     def __init__(self, projects: list[str], firebase_certificate: Path = Path('.firebase.json')) -> None:
         super().__init__()
 
@@ -67,6 +72,8 @@ class CurveDataset(Dataset):
             
             self.unrolled_curves.extend(result.curves)
             self.unrolled_matt_data.extend(result.matt_data)
+
+            self.raw_labels[project_code] = self.fetcher.fetch_raw(project_code)
 
 
 
@@ -145,6 +152,26 @@ class CurveDataset(Dataset):
         return image
 
 
+    def _process_labels(self, curve: Curve) -> dict[str, any]:
+        """
+        Processes the labels for the given curve to match the requirements of UnityHeatmap.
+        """
+
+        keypoint_name = curve.label
+
+        result: dict[str, any] = {}
+
+        result[keypoint_name] = [{
+            'x': curve.xs, 
+            'y': curve.ys, 
+            'straight_segment': curve.straight_flag,
+            'type': curve.type
+            }]
+
+        return result
+
+
+
     def __len__(self) -> int:
         return len(self.unrolled_curves)
 
@@ -153,9 +180,18 @@ class CurveDataset(Dataset):
         matt_data = self.unrolled_matt_data[index]
         curve = self.unrolled_curves[index]
 
+        raw_project_labels = self.raw_labels[curve.project]
+
         image = self._fetch_image(curve.file)
 
-        return image
+        # NOTE(guilherme): at this point, the original code handles augmentation on the CPU
+        # I don't think we need to do that, so I'm going to skip it for now
+        # and see if we can handle it on the GPU.
+        # I suspect that this may be the case due to the fact that
+        # any operations we apply on the image _must_ be applied to the heatmap
+        # as well.
+
+        return image, self._process_labels(curve)
 
 
     

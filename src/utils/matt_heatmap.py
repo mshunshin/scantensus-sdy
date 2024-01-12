@@ -157,6 +157,8 @@ def make_labels_and_masks(image_in_size,
         logging.error(f"No label data supplied")
         return heatmaps, weights
 
+    # label_data: dict[keypoint_name: str, list[dict[key: str, value: any]]]
+
     for keypoint_idx, keypoint in enumerate(keypoint_names):
         try:
             keypoint_data = label_data.get(keypoint, None)

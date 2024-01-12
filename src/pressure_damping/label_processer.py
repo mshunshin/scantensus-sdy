@@ -75,6 +75,7 @@ class FirebaseCurveFetcher:
                 user=curve['user'],
                 time=curve['time'],
                 label=curve['label'],
+                type=curve['vis'],
                 xs=[(float(value)) for value in curve['value_x'].split()],
                 ys=[(float(value)) for value in curve['value_y'].split()],
                 straight_flag=[(int(value)) for value in curve['straight_segment'].split()],
@@ -85,3 +86,10 @@ class FirebaseCurveFetcher:
             curves=output_curves,
             matt_data=res
         )
+
+    def fetch_raw(self, project_code: str) -> dict[str, any]:
+        """
+        Fetches the raw data for the given project code.
+        """
+
+        return firebase_admin.db.reference(f'/fiducial/{project_code}/labels').get()

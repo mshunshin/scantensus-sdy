@@ -33,6 +33,7 @@ class Curve:
     xs: List[float]
     ys: List[float]
     straight_flag: List[int]
+    type: str
 
 
 @dataclass
