@@ -19,10 +19,19 @@ class CurveDataset(Dataset):
     A `Dataset` that allows for loading image and curve data from multiple sources.
     """
 
+     # MARK: Inputs
+
     project_codes: list[str]
     """
     The list of project codes associated with this dataset.
     """
+
+    output_shape: tuple[int, int]
+    """
+    The output shape of the dataset images and labels in the form (height, width).
+    """
+
+    # MARK: Generated Properties
 
     fetcher: FirebaseCurveFetcher
     """
@@ -49,10 +58,14 @@ class CurveDataset(Dataset):
     The raw `labels/` database for each of the projects.
     """
 
-    def __init__(self, projects: list[str], firebase_certificate: Path = Path('.firebase.json')) -> None:
+    def __init__(self, 
+                projects: list[str], 
+                output_shape: tuple[int, int],
+                firebase_certificate: Path = Path('.firebase.json')) -> None:
         super().__init__()
 
         self.project_codes = projects
+        self.output_shape = output_shape
         self.fetcher = FirebaseCurveFetcher(firebase_certificate)
 
         self._fetch_curves()
@@ -80,6 +93,11 @@ class CurveDataset(Dataset):
     def _fetch_image(self, code: str) -> Optional[torch.Tensor]:
         """
         Fetches the image for the given code.
+
+        Arguments:
+            code (str): The code to fetch the image for. Currently only supports cluster codes.
+        Returns:
+            Optional[torch.Tensor]: The image as a torch.Tensor, or None if the code is not supported.
         """
 
         source: ClusterSource = None
@@ -126,7 +144,6 @@ class CurveDataset(Dataset):
 
         Raises:
             Exception: If the image fails to load.
-
         """
 
         if image_path.startswith("http://") or image_path.startswith("https://"):
@@ -152,9 +169,72 @@ class CurveDataset(Dataset):
         return image
 
 
+    def transform_image(self, image: torch.Tensor, transform_matrix: torch.Tensor, out_image_size=(512,512)):
+        device = image.device
+
+        if image.dim() == 2:
+            image = image.unsqueeze(0).unsqueeze(0)
+        elif image.dim() == 3:
+            image = image.unsqueeze(0)
+
+        batch_size = image.shape[0]
+
+        out_image_h = out_image_size[0]
+        out_image_w = out_image_size[1]
+
+        identity_grid = torch.tensor([[[1, 0, 0], [0, 1, 0]]], dtype=torch.float32, device=device)
+        intermediate_grid_shape = [batch_size, out_image_h * out_image_w, 2]
+
+        grid = torch.nn.functional.affine_grid(identity_grid, [batch_size, 1, out_image_h, out_image_w], align_corners=False)
+        grid = grid.reshape(intermediate_grid_shape)
+
+        # For some reason it gives you w, h at the output of affine_grid. So switch here.
+        grid = grid[..., [1, 0]]
+        grid = self.apply_matrix_to_coords(transform_matrix=transform_matrix, coord=grid)
+        grid = grid[..., [1, 0]]
+
+        grid = grid.reshape([batch_size, out_image_h, out_image_w, 2])
+
+        # There is no constant selection for padding mode - so border will have to do to weights.
+        image = torch.nn.functional.grid_sample(image, grid, mode='bilinear', padding_mode="zeros", align_corners=False).squeeze(0)
+
+        return image
+
+
+    def apply_matrix_to_coords(transform_matrix: torch.Tensor, coord: torch.Tensor):
+        if coord.dim() == 2:
+            coord = coord.unsqueeze(0)
+
+        batch_size = coord.shape[0]
+
+        if transform_matrix.dim() == 2:
+            transform_matrix = transform_matrix.unsqueeze(0)
+
+        if transform_matrix.size()[1:] == (3, 3):
+            transform_matrix = transform_matrix[:, :2, :]
+
+        A_batch = transform_matrix[:, :, :2]
+        if A_batch.size(0) != batch_size:
+            A_batch = A_batch.repeat(batch_size, 1, 1)
+
+        B_batch = transform_matrix[:, :, 2].unsqueeze(1)
+
+        coord = coord.bmm(A_batch.transpose(1, 2)) + B_batch.expand(coord.shape)
+
+        return coord
+
+
     def _process_labels(self, curve: Curve) -> dict[str, any]:
         """
-        Processes the labels for the given curve to match the requirements of UnityHeatmap.
+        Processes the labels for the given curve to match the requirements of UnityMakeHeatmap.
+
+        This does not yet handle multiple curves on the same image (such as when training for multiple tasks at once).
+
+        Arguments:
+            curve (Curve): The curve to process.
+        
+        Returns:
+            dict[str, any]: The processed labels.
         """
 
         keypoint_name = curve.label
@@ -171,17 +251,28 @@ class CurveDataset(Dataset):
         return result
 
 
+    def _generate_scale_matrix(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Generates scale-only transform matrix for the given image to match `self.output_shape`.
+        """
+
+        H, W = image.shape[1], image.shape[2]
+        h, w = self.output_shape
+
+        return torch.tensor([
+            [h / H, 0, 0],
+            [0, w / W, 0],
+            [0, 0, 1]
+        ])
+
+
 
     def __len__(self) -> int:
         return len(self.unrolled_curves)
 
 
-    def __getitem__(self, index: int) -> any:
-        matt_data = self.unrolled_matt_data[index]
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, dict[str, any], torch.Tensor]:
         curve = self.unrolled_curves[index]
-
-        raw_project_labels = self.raw_labels[curve.project]
-
         image = self._fetch_image(curve.file)
 
         # NOTE(guilherme): at this point, the original code handles augmentation on the CPU
@@ -191,7 +282,9 @@ class CurveDataset(Dataset):
         # any operations we apply on the image _must_ be applied to the heatmap
         # as well.
 
-        return image, self._process_labels(curve)
+        transform_matrix = self._generate_scale_matrix(image)
+
+        return image, self._process_labels(curve), transform_matrix
 
 
     

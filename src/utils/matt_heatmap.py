@@ -357,7 +357,6 @@ def apply_matrix_to_coords(transform_matrix: torch.Tensor, coord: torch.Tensor):
 
 
 def transform_image(image: torch.Tensor, transform_matrix: torch.Tensor, out_image_size=(512,512)):
-
     device = image.device
 
     if image.dim() == 2:
