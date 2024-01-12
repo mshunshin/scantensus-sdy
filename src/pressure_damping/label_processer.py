@@ -6,7 +6,28 @@ from pathlib import Path
 from src.pressure_damping.types import *
 from src.utils.matt_json import get_labels_from_firebase_project_data_new
 
-class FirebaseCurveFetcher():
+@dataclass
+class FetchResult:
+    """
+    The result of fetching curves.
+    """
+
+    config: Config
+    """
+    The config for the curves.
+    """
+
+    curves: list[Curve]
+    """
+    The curves.
+    """
+
+    matt_data: list[dict[str, any]]
+    """
+    The Matt-formated data.
+    """
+
+class FirebaseCurveFetcher:
     """
     Fetches curves from Firebase.
     """
@@ -28,7 +49,7 @@ class FirebaseCurveFetcher():
         firebase_admin.initialize_app(cred, { 'databaseURL': "https://scantensus.firebaseio.com" })
 
 
-    def fetch(self, project_code: str):
+    def fetch(self, project_code: str) -> FetchResult:
         """
         Fetches the curves for the given project code.
         """
@@ -59,4 +80,8 @@ class FirebaseCurveFetcher():
                 straight_flag=[(int(value)) for value in curve['straight_segment'].split()],
             ))
 
-        return output_curves
+        return FetchResult(
+            config=config,
+            curves=output_curves,
+            matt_data=res
+        )
