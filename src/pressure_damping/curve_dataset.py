@@ -10,10 +10,22 @@ from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetch
 from loguru import logger
 from src.pressure_damping.unity_dataset import center_crop_or_pad_t
 from src.utils.cluster_source import ClusterSource
+from src.utils.securion_source import SecurionSource
+
+
+# avoid scaling stuff
+# 1. pad the image and keep the shifts (x and y)
+# 2. work out a random transform (rot, trans, scale, shear) for the image
+# 3. image_t = apply_transform(image, transform)
+# 4. make_heatmap([T], shifts)
+
+# (optional 1. move stuff to kornia)
+
 
 import torchvision
 
 CLUSTER_STORE_URL = "https://storage.googleapis.com/scantensus/fiducial"
+SECURION_STORE_URL = "http://cardiac5.ts.zomirion.com:50601/scantensus-database-png-flat"
 
 class CurveDataset(Dataset):
     """
@@ -101,16 +113,16 @@ class CurveDataset(Dataset):
             Optional[torch.Tensor]: The image as a torch.Tensor, or None if the code is not supported.
         """
 
-        source: ClusterSource = None
+        source: ClusterSource | SecurionSource = None
 
         if 'clusters' in code:
             source = ClusterSource(unity_code=code,
                                     png_cache_dir=None,
                                     server_url=CLUSTER_STORE_URL)
         else: 
-            logger.error(f'Code of unknown source: {code}')
-
-            return None 
+            source = SecurionSource(unity_code=code,
+                                    png_cache_dir=None,
+                                    server_url=SECURION_STORE_URL)
 
 
         png_session = requests_cache.CachedSession(cache_name='png_cache',

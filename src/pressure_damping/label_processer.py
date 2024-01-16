@@ -61,8 +61,18 @@ class FirebaseCurveFetcher:
         # maps (name -> url)
         url_map = {k: v['url'] for k, v in urls_data.items()}
 
-        config = Config(**config_data)
-        config.curves = {k: CurveConfig(**v) for k, v in config.curves.items()}
+        config = Config(
+            access=config_data['access'],
+            curves={k: CurveConfig(**v) for k, v in config_data['curves'].items()},
+            name=config_data['name'],
+            leaderboardSize=config_data['leaderboardSize'],
+            imageStore=config_data['imageStore'],
+            projectClass=config_data['projectClass'],
+            accessEmailsColonInKeyButDotInValue=config_data['accessEmailsColonInKeyButDotInValue'],
+        )
+
+        #config = Config(**config_data)
+        #config.curves = {k: CurveConfig(**v) for k, v in config.curves.items()}
 
         res = get_labels_from_firebase_project_data_new(project_data, project_code, {})
 

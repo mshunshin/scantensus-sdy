@@ -10,10 +10,24 @@ from src.pressure_damping.pretransformations import PretransformationsModule
 import numpy as np
 import torch
 
+from loguru import logger
+
+POSSIBLE_PROJECTS = [
+    'imp-coro-flow-inv',
+    'imp-coro-shunshin-sdy-flow-bad',
+    'imp-coro-shunshin-sdy-flow-good',
+    'imp-coro-shunshin-sdy-flow-diff',
+    'imp-coro-seligman-expert-first-beat',
+    'imp-coro-shunshin-sdy-validation-expert'
+]
 
 if __name__ == '__main__':
+    project = POSSIBLE_PROJECTS[2]
+
+    logger.info(f'Using project "{project}"')
+
     dataset = CurveDataset(
-        projects=['imp-coro-flow-inv'],
+        projects=[project],
         output_shape=(170, 422),
         firebase_certificate=Path('.firebase.json')
     )

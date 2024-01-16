@@ -20,7 +20,7 @@ class PretransformationsModule(nn.Module):
     def forward(self, 
                 label_data: list[dict[str, any]],
                 images: torch.Tensor,
-                dataset_transform_matrix: torch.Tensor,
+                dataset_transform_matrices: list[torch.Tensor],
                 label_height_shift: list[int] | None = None, 
                 label_width_shift: list[int] | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -38,7 +38,7 @@ class PretransformationsModule(nn.Module):
             label_data=label_data,
             label_height_shift=label_height_shift,
             label_width_shift=label_width_shift,
-            transform_matrix=dataset_transform_matrix
+            transform_matrix=dataset_transform_matrices
         )
 
         return images, heatmaps, weights

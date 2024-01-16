@@ -9,7 +9,7 @@ class CurveConfig:
 
     color: str
     name: str
-    stepSize: str
+    stepSize: str | None = None
 
 
 @dataclass
