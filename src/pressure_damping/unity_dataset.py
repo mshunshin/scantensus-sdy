@@ -263,7 +263,7 @@ def read_image_into_t(image_path: str,
 import torch
 
 
-def center_crop_or_pad_t(image: torch.tensor, output_size=(608, 608), cval=0, return_shift=True, device=None):
+def center_crop_or_pad_t(image: torch.tensor, output_size=(608, 608), cval=0, return_shift=True, device=None) -> tuple[torch.Tensor, float, float]:
     out_h, out_w = output_size
 
     ndim = image.ndim

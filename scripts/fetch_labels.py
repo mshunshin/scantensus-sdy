@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     dataset = CurveDataset(
         projects=[project],
-        output_shape=(170, 422),
+        #output_shape=(170, 422),
         firebase_certificate=Path('.firebase.json')
     )
 
@@ -43,15 +43,6 @@ if __name__ == '__main__':
         image_out_size=(H, W)
     )
 
-    """
-    heatmap_gen(
-        label_data=[raw_labels],
-        label_height_shift=[0],
-        label_width_shift=[0],
-        transform_matrix=[T]
-    )
-    """
-
     pretransforms = PretransformationsModule(
         keypoint_names=['curve-flow'],
         image_crop_size=(170, 422),
@@ -61,7 +52,7 @@ if __name__ == '__main__':
     images, heatmaps, weights = pretransforms.forward(
         label_data=[raw_labels],
         images=image.unsqueeze(0),
-        dataset_transform_matrix=T.unsqueeze(0),
+        dataset_transform_matrices=[T],
     )
 
     pass

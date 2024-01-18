@@ -1,3 +1,4 @@
+from dataclasses import dataclass, asdict
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -8,7 +9,7 @@ from torch.utils.data import Dataset
 from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetcher, Curve
 
 from loguru import logger
-from src.pressure_damping.unity_dataset import center_crop_or_pad_t
+from src.pressure_damping.unity_dataset import center_crop_or_pad_t, transform_image
 from src.utils.cluster_source import ClusterSource
 from src.utils.securion_source import SecurionSource
 
@@ -27,6 +28,22 @@ import torchvision
 CLUSTER_STORE_URL = "https://storage.googleapis.com/scantensus/fiducial"
 SECURION_STORE_URL = "http://cardiac5.ts.zomirion.com:50601/scantensus-database-png-flat"
 
+@dataclass
+class CurveDatasetResult:
+    """
+    The result of fetching curves.
+    """
+
+    image: torch.Tensor
+
+    transform_matrix: torch.Tensor
+
+    labels: dict[str, any]
+
+    height_shift: float
+
+    width_shift: float
+
 class CurveDataset(Dataset):
     """
     A `Dataset` that allows for loading image and curve data from multiple sources.
@@ -42,6 +59,11 @@ class CurveDataset(Dataset):
     output_shape: tuple[int, int]
     """
     The output shape of the dataset images and labels in the form (height, width).
+    """
+
+    crop_shape: tuple[int, int]
+    """
+    The shape to crop the images to.
     """
 
     # MARK: Generated Properties
@@ -73,12 +95,14 @@ class CurveDataset(Dataset):
 
     def __init__(self, 
                 projects: list[str], 
-                output_shape: tuple[int, int],
+                output_shape: tuple[int, int] = (512, 512),
+                crop_shape: tuple[int, int] = (608, 608),
                 firebase_certificate: Path = Path('.firebase.json')) -> None:
         super().__init__()
 
         self.project_codes = projects
         self.output_shape = output_shape
+        self.crop_shape = crop_shape
         self.fetcher = FirebaseCurveFetcher(firebase_certificate)
 
         self._fetch_curves()
@@ -120,6 +144,7 @@ class CurveDataset(Dataset):
                                     png_cache_dir=None,
                                     server_url=CLUSTER_STORE_URL)
         else: 
+
             source = SecurionSource(unity_code=code,
                                     png_cache_dir=None,
                                     server_url=SECURION_STORE_URL)
@@ -264,6 +289,16 @@ class CurveDataset(Dataset):
         return result
 
 
+    def _pad_or_crop(self, image: torch.Tensor) -> tuple[torch.Tensor, float, float]:
+        """
+        Pads or crops the given image to match `self.crop_shape`.
+
+        Internally calls Matt's `center_crop_or_pad_t` function.
+        """
+
+        return center_crop_or_pad_t(image, self.crop_shape, device='cpu')
+
+
     def _generate_scale_matrix(self, image: torch.Tensor) -> torch.Tensor:
         """
         Generates scale-only transform matrix for the given image to match `self.output_shape`.
@@ -279,7 +314,6 @@ class CurveDataset(Dataset):
         ])
 
 
-
     def __len__(self) -> int:
         return len(self.unrolled_curves)
 
@@ -288,16 +322,31 @@ class CurveDataset(Dataset):
         curve = self.unrolled_curves[index]
         image = self._fetch_image(curve.file)
 
-        # NOTE(guilherme): at this point, the original code handles augmentation on the CPU
-        # I don't think we need to do that, so I'm going to skip it for now
-        # and see if we can handle it on the GPU.
-        # I suspect that this may be the case due to the fact that
-        # any operations we apply on the image _must_ be applied to the heatmap
-        # as well.
-
+        image, height_shift, width_shift = self._pad_or_crop(image)
         transform_matrix = self._generate_scale_matrix(image)
+        
+        # at some point matt's code transforms to float32 and then back to uint8
+        # i _think_ this is because he applies random gamma at that stage
+        
+        image = image.to(torch.float32).div(255.0)
 
-        return image, self._process_labels(curve), transform_matrix
+        image = transform_image(
+            image=image,
+            # why the inverse tho?
+            transform_matrix=transform_matrix.inverse(),
+            out_image_size=self.output_shape
+        )
+
+        image = image.mul(255.0).to(torch.uint8)
+
+        return asdict(CurveDatasetResult(
+            image=image,
+            transform_matrix=transform_matrix,
+            labels=self._process_labels(curve),
+            height_shift=height_shift,
+            width_shift=width_shift
+        ))
+
 
 
     
