@@ -314,6 +314,11 @@ class CurveDataset(Dataset):
         ])
 
 
+    def _generate_transform_matrix(self, image: torch.Tensor) -> torch.Tensor:
+        # TODO(guilherme): https://kornia.readthedocs.io/en/latest/geometry.transform.html#kornia.geometry.transform.get_affine_matrix2d
+        pass 
+
+
     def __len__(self) -> int:
         return len(self.unrolled_curves)
 
@@ -324,9 +329,6 @@ class CurveDataset(Dataset):
 
         image, height_shift, width_shift = self._pad_or_crop(image)
         transform_matrix = self._generate_scale_matrix(image)
-        
-        # at some point matt's code transforms to float32 and then back to uint8
-        # i _think_ this is because he applies random gamma at that stage
         
         image = image.to(torch.float32).div(255.0)
 
