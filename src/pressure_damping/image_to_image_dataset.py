@@ -5,6 +5,7 @@ from typing import Optional
 import requests_cache
 import torch
 import torchvision
+import torchvision.transforms.functional as F
 
 from torch.utils.data import Dataset
 from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetcher, Curve
@@ -245,6 +246,10 @@ class UnityImageToImageDataset(Dataset):
 
         if self.debug_mode:
             torchvision.utils.save_image(image.to(torch.float32).div(255.0), 'out/raw.png')
+
+        # make image grayscale if necessary
+        if image.shape[0] == 3:
+            image = F.rgb_to_grayscale(image)
 
         image, height_shift, width_shift = center_crop_or_pad_t(image, self.crop_shape, device='cpu')
 

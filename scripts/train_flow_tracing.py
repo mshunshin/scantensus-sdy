@@ -22,7 +22,7 @@ POSSIBLE_PROJECTS = [
 ]
 
 if __name__ == '__main__':
-    project = POSSIBLE_PROJECTS[0]
+    project = POSSIBLE_PROJECTS[2]
 
     logger.info(f'Using project "{project}"')
 
@@ -33,32 +33,3 @@ if __name__ == '__main__':
         firebase_certificate=Path('.firebase.json'),
         debug_mode=True
     )
-
-    image, T, (height_shift, width_shift), labels = dataset[11]
-
-    heatmap_gen = UnityMakeHeatmaps(
-        keypoint_names=['curve-flow'],
-        image_crop_size=dataset.crop_shape,
-        image_out_size=dataset.output_shape,
-        heatmap_scale_factors=[1, 2, 4]
-    )
-
-    heatmaps, weights = heatmap_gen.forward(
-        label_data=[labels],
-        transform_matrix=[normalize_homography(T.inverse(), dsize_src=dataset.output_shape, dsize_dst=dataset.output_shape)],
-        label_height_shift=[height_shift],
-        label_width_shift=[width_shift]
-    )
-
-    torchvision.utils.save_image(heatmaps[0].to(torch.float32), 'out/heatmap.png')
-
-    heatmap_viz = visualize_heatmap(image, heatmaps[0].squeeze())
-    heatmap_viz.save('out/heatmap_viz.png')
-
-    pass
-
-    
-
-
-
-    
