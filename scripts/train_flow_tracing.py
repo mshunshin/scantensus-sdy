@@ -1,16 +1,27 @@
 from pathlib import Path
+from typing import Literal
 
 from src.utils.matt_heatmap import UnityMakeHeatmaps
 from src.pressure_damping.image_to_image_dataset import UnityImageToImageDataset
 from src.utils.visualization import visualize_heatmap
 
-
 import torch
 import torchvision
+
+from torch.nn import Module
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
+
+import segmentation_models_pytorch as smp
 
 from kornia.geometry.conversions import normalize_homography
 
 from loguru import logger
+
+from tap import Tap
+import dill
+
+from src.pressure_damping.image_to_image_train import ImageToImageTrainConfig, ImageToImageTrainRunner
 
 POSSIBLE_PROJECTS = [
     'imp-coro-flow-inv',
@@ -21,15 +32,89 @@ POSSIBLE_PROJECTS = [
     'imp-coro-shunshin-sdy-validation-expert'
 ]
 
-if __name__ == '__main__':
-    project = POSSIBLE_PROJECTS[2]
+class Arguments(Tap):
+    projects: list[str] = ['imp-coro-flow-inv', 'imp-coro-shunshin-sdy-flow-good']
+    """
+    The projects to be used for training.
+    """
 
-    logger.info(f'Using project "{project}"')
+    crop_shape: tuple[int, int] = (512, 512)
+    """
+    The shape to crop the images to.
+    """
+
+    output_shape: tuple[int, int] = (512, 512)
+    """
+    The shape to resize the images to.
+    """
+
+    firebase_path: Path = Path('.firebase.json')
+    """
+    The path to the firebase authentication file.
+    """
+
+    num_epochs: int = 100
+    """
+    The number of epochs to train for.
+    """
+
+    model: Literal['unet'] = 'unet'
+    """
+    The model to use.
+    """
+
+    optimizer: Literal['adam'] = 'adam'
+
+    loss: Literal['mse'] = 'mse'
+
+    scheduler: Literal['step'] = 'step'
+
+
+if __name__ == '__main__':
+    args = Arguments().parse_args()
+
+    logger.info(f'Using projects: "{args.projects}"')
 
     dataset = UnityImageToImageDataset(
-        project_codes=[project],
-        crop_shape=(512, 512),
-        output_shape=(512, 512),
+        project_codes=args.projects,
+        crop_shape=args.crop_shape,
+        output_shape=args.output_shape,
         firebase_certificate=Path('.firebase.json'),
-        debug_mode=True
+        debug_mode=False
     )
+
+    heatmap_gen = UnityMakeHeatmaps(
+        keypoint_names=['curve-flow'],
+        image_crop_size=dataset.crop_shape,
+        image_out_size=dataset.output_shape,
+        heatmap_scale_factors=[1]
+    )
+
+    epochs = args.num_epochs
+
+    model = smp.Unet(
+        encoder_name="resnet34",
+        encoder_weights=None, 
+        in_channels=1,
+        classes=1, 
+        activation=None
+    )
+
+    config = ImageToImageTrainConfig(
+        train_ds=dataset,
+        tune_ds=None,
+        heatmap_generator=heatmap_gen,
+        model=model,
+        optimizer=args.optimizer,
+        loss_fn=args.loss,
+        scheduler=args.scheduler,
+        batch_size=10,
+        num_epochs=epochs,
+    )
+
+    runner = ImageToImageTrainRunner(config)
+
+    runner.run()
+
+
+

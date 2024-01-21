@@ -8,7 +8,7 @@ import torchvision
 import torchvision.transforms.functional as F
 
 from torch.utils.data import Dataset
-from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetcher, Curve
+from src.pressure_damping.label_processer import FetchResult, FirebaseCurveFetcher
 
 from loguru import logger
 from src.pressure_damping.unity_dataset import center_crop_or_pad_t, transform_image
@@ -42,6 +42,8 @@ class UnityImageToImageDataset(Dataset):
     The shape to crop the images to in the form (height, width).
     """
 
+    firebase_auth: Path
+
     debug_mode: bool = False
     """
     Wether to enable debug mode.
@@ -50,12 +52,7 @@ class UnityImageToImageDataset(Dataset):
 
     # MARK: Generated Properties
 
-    fetch_results: list[FetchResult] = []
-    """
-    The fetch results.
-    """
-
-    curves: list[Curve] = []
+    curves: list['Curve'] = []
     """
     A single collection of all the curves.
     """
@@ -64,24 +61,31 @@ class UnityImageToImageDataset(Dataset):
         self.project_codes = project_codes
         self.output_shape = output_shape
         self.crop_shape = crop_shape
-        self.fetcher = FirebaseCurveFetcher(firebase_certificate)
         self.debug_mode = debug_mode
+        self.firebase_auth = firebase_certificate
 
-        self._fetch_curves()
+        self.curves = self._fetch_curves()
 
 
-    def _fetch_curves(self):
+    def _fetch_curves(self) -> list['Curve']:
         """
         Fetches the curves for this dataset.
         """
 
+        fetcher = FirebaseCurveFetcher(self.firebase_auth)
+
+        curves = []
+
         for project_code in self.project_codes:
-            result = self.fetcher.fetch(project_code)
+            result = fetcher.fetch(project_code)
 
-            self.fetch_results.append(result)
-            self.curves.extend(result.curves)
+            curves.extend(result.curves)
 
-    def _process_labels(self, curve: Curve) -> dict[str, any]:
+        return curves
+
+            
+
+    def _process_labels(self, curve: 'Curve') -> dict[str, any]:
         """
         Processes the labels for the given curve to match the requirements of UnityMakeHeatmap.
 
@@ -275,3 +279,16 @@ class UnityImageToImageDataset(Dataset):
 
 
 
+
+
+@dataclass 
+class Curve:
+    project: str
+    file: str
+    user: str
+    time: str
+    label: str
+    xs: list[float]
+    ys: list[float]
+    straight_flag: list[int]
+    type: str

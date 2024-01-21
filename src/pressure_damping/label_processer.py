@@ -46,7 +46,8 @@ class FirebaseCurveFetcher:
 
         cred = firebase_admin.credentials.Certificate(self.credentials_path)
 
-        firebase_admin.initialize_app(cred, { 'databaseURL': "https://scantensus.firebaseio.com" })
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred, { 'databaseURL': "https://scantensus.firebaseio.com" })
 
 
     def fetch(self, project_code: str) -> FetchResult:
