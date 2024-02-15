@@ -37,9 +37,11 @@ class UnityImageToImageDataset(Dataset):
     The output shape of the dataset images and labels in the form (height, width).
     """
 
-    crop_shape: tuple[int, int]
+    crop_shape: tuple[int, int] | None
     """
     The shape to crop the images to in the form (height, width).
+
+    If None, no cropping will be performed.
     """
 
     firebase_auth: Path
@@ -56,6 +58,14 @@ class UnityImageToImageDataset(Dataset):
     """
     A single collection of all the curves.
     """
+
+    @property
+    def final_shape(self) -> tuple[int, int]:
+        """
+        The final shape of the images and labels in the form (height, width).
+        """
+
+        return self.crop_shape if self.crop_shape is not None else self.output_shape
 
     def __init__(self, project_codes: list[str], output_shape: tuple[int, int], crop_shape: tuple[int, int], firebase_certificate: Path, debug_mode: bool = False) -> None:
         self.project_codes = project_codes
@@ -255,7 +265,11 @@ class UnityImageToImageDataset(Dataset):
         if image.shape[0] == 3:
             image = F.rgb_to_grayscale(image)
 
-        image, height_shift, width_shift = center_crop_or_pad_t(image, self.crop_shape, device='cpu')
+        if self.crop_shape is not None:
+            image, height_shift, width_shift = center_crop_or_pad_t(image, self.crop_shape, device='cpu')
+        else:
+            height_shift = 0
+            width_shift = 0
 
         if self.debug_mode:
             torchvision.utils.save_image(image.to(torch.float32).div(255.0), 'out/cropped.png')

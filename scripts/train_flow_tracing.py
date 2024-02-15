@@ -33,14 +33,14 @@ POSSIBLE_PROJECTS = [
 ]
 
 class Arguments(Tap):
-    projects: list[str] = ['imp-coro-flow-inv', 'imp-coro-shunshin-sdy-flow-good']
+    projects: list[str] = ['imp-coro-flow-inv', 'imp-coro-shunshin-sdy-flow-good', 'imp-coro-shunshin-sdy-flow-bad', 'imp-coro-shunshin-sdy-flow-diff']
     """
     The projects to be used for training.
     """
 
-    crop_shape: tuple[int, int] = (512, 512)
+    crop_shape: tuple[int, int] | None = None
     """
-    The shape to crop the images to.
+    The shape to crop the images to. If none, no cropping is done.
     """
 
     output_shape: tuple[int, int] = (512, 512)
@@ -58,7 +58,7 @@ class Arguments(Tap):
     The number of epochs to train for.
     """
 
-    model: Literal['unet'] = 'unet'
+    model: Literal['unet', 'deeplabv3'] = 'unet' 
     """
     The model to use.
     """
@@ -68,6 +68,28 @@ class Arguments(Tap):
     loss: Literal['mse'] = 'mse'
 
     scheduler: Literal['step'] = 'step'
+
+
+def get_model(args: Arguments) -> torch.nn.Module:
+    if args.model == 'unet':
+        model = smp.Unet(
+            encoder_name="resnet34",
+            encoder_weights=None, 
+            in_channels=1,
+            classes=1, 
+            activation=None
+        )
+    elif args.model == 'deeplabv3':
+        model = smp.DeepLabV3(
+            encoder_name="resnet34",
+            encoder_weights=None,
+            in_channels=1,
+            classes=1,
+            activation=None
+        )
+    else:
+        raise ValueError(f'Invalid model: {args.model}')
+    return model
 
 
 if __name__ == '__main__':
@@ -85,20 +107,14 @@ if __name__ == '__main__':
 
     heatmap_gen = UnityMakeHeatmaps(
         keypoint_names=['curve-flow'],
-        image_crop_size=dataset.crop_shape,
+        image_crop_size=dataset.final_shape,
         image_out_size=dataset.output_shape,
         heatmap_scale_factors=[1]
     )
 
     epochs = args.num_epochs
 
-    model = smp.Unet(
-        encoder_name="resnet34",
-        encoder_weights=None, 
-        in_channels=1,
-        classes=1, 
-        activation=None
-    )
+    model = get_model(args)
 
     config = ImageToImageTrainConfig(
         train_ds=dataset,
@@ -115,6 +131,3 @@ if __name__ == '__main__':
     runner = ImageToImageTrainRunner(config)
 
     runner.run()
-
-
-

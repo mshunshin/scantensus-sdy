@@ -14,13 +14,13 @@ class CurveConfig:
 
 @dataclass
 class Config:
-    access: str
-    accessEmailsColonInKeyButDotInValue: Dict[str, str]
-    curves: Dict[str, CurveConfig]
-    imageStore: str
-    leaderboardSize: int
-    name: str
-    projectClass: str
+    access: str | None
+    accessEmailsColonInKeyButDotInValue: Dict[str, str] | None
+    curves: Dict[str, CurveConfig] | None
+    imageStore: str | None
+    leaderboardSize: int | None
+    name: str |None
+    projectClass: str | None
 
 
 @dataclass 
